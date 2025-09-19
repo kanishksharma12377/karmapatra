@@ -1,129 +1,323 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { BookOpen, User, Shield, ArrowLeft } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { Navigation } from "@/components/navigation"
+import { User, Shield, Mail, Lock, AlertCircle, UserPlus } from "lucide-react"
+import { signIn, signUp } from "@/lib/firebase-auth"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [activeTab, setActiveTab] = useState("student")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [showAdminRegistration, setShowAdminRegistration] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const handleStudentLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+  useEffect(() => {
+    const type = searchParams.get("type")
+    if (type === "admin" || type === "student") {
+      setActiveTab(type)
+    }
+  }, [searchParams])
 
-    // Simulate login process
-    setTimeout(() => {
-      setIsLoading(false)
-      router.push("/student/dashboard")
-    }, 1500)
+  const handleLogin = async (userType: string) => {
+    if (!email || !password) return
+
+    setLoading(true)
+    setError("")
+    setShowAdminRegistration(false)
+
+    try {
+      console.log("[v0] Starting login process for:", userType)
+      const { user, profile } = await signIn(email, password)
+
+      console.log("[v0] Login successful, user role:", profile?.role)
+
+      // Check if user role matches selected tab
+      if (profile?.role !== userType) {
+        setError(`This account is not registered as a ${userType}`)
+        setLoading(false)
+        return
+      }
+
+      // Redirect based on user role
+      if (profile?.role === "student") {
+        console.log("[v0] Redirecting to student dashboard")
+        router.push("/student/dashboard")
+      } else if (profile?.role === "admin") {
+        console.log("[v0] Redirecting to admin dashboard")
+        router.push("/admin/dashboard")
+      }
+    } catch (error: any) {
+      console.error("[v0] Login error:", error)
+
+      if (error.message.includes("Invalid email or password")) {
+        // Check if this is a default test account that needs to be created
+        if (userType === "admin" && email === "admin@college.edu" && password === "admin123") {
+          setShowAdminRegistration(true)
+          setError("Admin account doesn't exist. Click below to create it.")
+        } else if (
+          userType === "student" &&
+          email.startsWith("student") &&
+          email.endsWith("@college.edu") &&
+          password === "student123"
+        ) {
+          // Auto-create student account
+          try {
+            console.log("[v0] Creating student account:", email)
+            const studentNumber = email.split("@")[0].replace("student", "")
+            const studentProfile = {
+              email: email,
+              role: "student" as const,
+              name: `Student ${studentNumber}`,
+              rollNumber: `2024CS${studentNumber.padStart(3, "0")}`,
+              department: "Computer Science",
+            }
+
+            const { user, profile } = await signUp(email, password, studentProfile)
+            console.log("[v0] Student account created successfully")
+
+            // Redirect to student dashboard
+            router.push("/student/dashboard")
+            return
+          } catch (signUpError: any) {
+            console.error("[v0] Student registration error:", signUpError)
+            setError(`Failed to create student account: ${signUpError.message}`)
+          }
+        } else {
+          setError("Invalid email or password. Please check your credentials.")
+        }
+      } else if (error.message.includes("Admin user not found") && userType === "admin") {
+        setShowAdminRegistration(true)
+      } else {
+        setError(error.message || "Login failed. Please check your credentials.")
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+  const handleAdminRegistration = async () => {
+    if (!email || !password) return
 
-    // Simulate login process
-    setTimeout(() => {
-      setIsLoading(false)
+    setLoading(true)
+    setError("")
+
+    try {
+      console.log("[v0] Creating admin account")
+      const adminProfile = {
+        email: email,
+        role: "admin" as const,
+        name: "Dr. Rajesh Gupta",
+        department: "Computer Science",
+      }
+
+      const { user, profile } = await signUp(email, password, adminProfile)
+      console.log("[v0] Admin account created successfully")
+
+      // Redirect to admin dashboard
       router.push("/admin/dashboard")
-    }, 1500)
+    } catch (error: any) {
+      console.error("[v0] Admin registration error:", error)
+      setError(error.message || "Failed to create admin account.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Link>
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-2xl font-bold text-gray-900">KarmaPatra</span>
+    <div className="min-h-screen bg-gradient-to-br from-background via-card/30 to-background">
+      <Navigation />
+
+      <main className="container mx-auto px-4 py-12">
+        <div className="max-w-md mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-primary mb-2">Welcome Back</h1>
+            <p className="text-muted-foreground">Sign in to your KarmaPatra account</p>
           </div>
-          <p className="text-gray-600">Welcome back! Please sign in to continue.</p>
-        </div>
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-center">Sign In</CardTitle>
-            <CardDescription className="text-center">Choose your account type to continue</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="student" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="student" className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Student
-                </TabsTrigger>
-                <TabsTrigger value="admin" className="flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Admin
-                </TabsTrigger>
-              </TabsList>
+          <Card>
+            <CardHeader>
+              <CardTitle>Login</CardTitle>
+              <CardDescription>Choose your account type and enter your credentials</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {error && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-              <TabsContent value="student">
-                <form onSubmit={handleStudentLogin} className="space-y-4">
+              {showAdminRegistration && (
+                <Alert className="mb-4">
+                  <UserPlus className="h-4 w-4" />
+                  <AlertDescription>
+                    Admin account doesn't exist. Create it now?
+                    <Button
+                      onClick={handleAdminRegistration}
+                      variant="outline"
+                      size="sm"
+                      className="ml-2 bg-transparent"
+                      disabled={loading}
+                    >
+                      {loading ? "Creating..." : "Create Admin Account"}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="student" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Student
+                  </TabsTrigger>
+                  <TabsTrigger value="admin" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Admin
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="admin" className="space-y-4 mt-6">
+                  <div className="mb-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEmail("admin@college.edu")
+                        setPassword("admin123")
+                      }}
+                      className="w-full text-xs"
+                    >
+                      Quick Fill Admin Credentials
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email">Admin Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="admin-email"
+                        type="email"
+                        placeholder="admin@college.edu"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password">Admin Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="admin-password"
+                        type="password"
+                        placeholder="Enter admin password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10"
+                        disabled={loading}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handleLogin("admin")}
+                    className="w-full"
+                    disabled={!email || !password || loading}
+                  >
+                    <Shield className="mr-2 h-4 w-4" />
+                    {loading ? "Signing in..." : "Login as Admin"}
+                  </Button>
+                </TabsContent>
+
+                <TabsContent value="student" className="space-y-4 mt-6">
+                  <div className="mb-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEmail("student1@college.edu")
+                        setPassword("student123")
+                      }}
+                      className="w-full text-xs"
+                    >
+                      Quick Fill Student Credentials
+                    </Button>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="student-email">Email</Label>
-                    <Input id="student-email" type="email" placeholder="student@example.com" required />
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="student-email"
+                        type="email"
+                        placeholder="student@university.edu"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10"
+                        disabled={loading}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="student-password">Password</Label>
-                    <Input id="student-password" type="password" placeholder="Enter your password" required />
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="student-password"
+                        type="password"
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10"
+                        disabled={loading}
+                      />
+                    </div>
                   </div>
-                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={isLoading}>
-                    {isLoading ? "Signing in..." : "Sign in as Student"}
+                  <Button
+                    onClick={() => handleLogin("student")}
+                    className="w-full"
+                    disabled={!email || !password || loading}
+                  >
+                    <User className="mr-2 h-4 w-4" />
+                    {loading ? "Signing in..." : "Login as Student"}
                   </Button>
-                </form>
-                <div className="mt-4 text-center">
-                  <p className="text-sm text-gray-600">
-                    Don't have an account?{" "}
-                    <a href="#" className="text-blue-600 hover:underline">
-                      Sign up here
-                    </a>
+                </TabsContent>
+              </Tabs>
+
+              <div className="mt-6 text-center">
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p className="font-medium">Default Credentials:</p>
+                  <p>
+                    Admin: <span className="font-mono">admin@college.edu</span> /{" "}
+                    <span className="font-mono">admin123</span>
+                  </p>
+                  <p>
+                    Student: <span className="font-mono">student1@college.edu</span> /{" "}
+                    <span className="font-mono">student123</span>
                   </p>
                 </div>
-              </TabsContent>
-
-              <TabsContent value="admin">
-                <form onSubmit={handleAdminLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="admin-email">Admin Email</Label>
-                    <Input id="admin-email" type="email" placeholder="admin@karmapatra.com" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="admin-password">Password</Label>
-                    <Input id="admin-password" type="password" placeholder="Enter admin password" required />
-                  </div>
-                  <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700" disabled={isLoading}>
-                    {isLoading ? "Signing in..." : "Sign in as Admin"}
-                  </Button>
-                </form>
-                <div className="mt-4 text-center">
-                  <p className="text-sm text-gray-600">Admin access only. Contact support for assistance.</p>
-                </div>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        <div className="mt-6 text-center text-sm text-gray-500">
-          <p>Demo credentials available for testing</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
