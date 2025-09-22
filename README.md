@@ -40,54 +40,26 @@ A modern Next.js application for managing student achievements, portfolios, and 
 
 3. **Set up environment variables**
    
-   Create a `.env.local` file in the root directory:
-   ```env
-   # Firebase Configuration
-   NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
-   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+   - If the repository already includes a `.env.local` file, you're all set. Just run the app.
+   - Otherwise, copy the example file and fill in your own keys:
+     ```bash
+     cp .env.example .env.local
+     ```
    
-   # Firebase Admin SDK (for server-side operations)
-   FIREBASE_ADMIN_PROJECT_ID=your_project_id
-   FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour_private_key\n-----END PRIVATE KEY-----"
-   FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your_project.iam.gserviceaccount.com
-   ```
+   Security note: never commit real secrets to the README or the repository. Keep them in `.env.local` (already gitignored).
 
-4. **Firebase Setup**
-   
-   - Go to [Firebase Console](https://console.firebase.google.com/)
-   - Create a new project or use existing one
-   - Enable **Firestore Database** and **Authentication**
-   - Copy your config values to `.env.local`
-
-5. **Configure Firestore Rules**
-   
-   In Firebase Console → Firestore Database → Rules, paste:
-   ```javascript
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       // Allow read/write access to all documents
-       match /{document=**} {
-         allow read, write: if true;
-       }
-     }
-   }
-   ```
-
-6. **Run the development server**
+4. **Run the development server**
    ```bash
    npm run dev
    # or
    pnpm dev
    ```
 
-7. **Open your browser**
+5. **Open your browser**
    
    Navigate to [http://localhost:3000](http://localhost:3000)
+
+> 🎉 **That's it!** The app is ready with pre-configured Firebase backend. No additional setup needed!
 
 ## 🎮 Demo Credentials
 
@@ -102,6 +74,26 @@ A modern Next.js application for managing student achievements, portfolios, and 
 - **URL**: [http://localhost:3000/login?type=student](http://localhost:3000/login?type=student)
 
 > 💡 **Tip**: Use the "🚀 Quick Fill Demo Credentials" buttons on login forms for instant access!
+
+## 🔥 Super Quick Start
+
+1. **Clone & Install**:
+   ```bash
+   git clone https://github.com/kanishksharma12377/karmapatra.git
+   cd karmapatra
+   npm install
+   ```
+
+2. **Environment**:
+   - If `.env.local` is present, skip this step
+   - Else run: `cp .env.example .env.local` and add your Firebase keys
+
+3. **Run**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Test**: Go to [http://localhost:3000](http://localhost:3000) and use demo credentials!
 
 ## 📁 Project Structure
 
