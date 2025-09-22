@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Role helper available to all sub-matches
+    function hasRole(targetRole) {
+      return (
+        // Prefer custom claims
+        (request.auth.token.role == targetRole) ||
+        // Fallback: check role field on the caller's own user doc
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == targetRole)
+      );
+    }
+
+    // Users can read and write their own profile data
+    match /users/{userId} {
+      // Self access
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Admin/Faculty can read any user document (for dashboards, counts, etc.)
+      allow read: if request.auth != null && (hasRole("admin") || hasRole("faculty"));
+      // Optionally allow admins to update user docs (uncomment if desired)
+      // allow update: if request.auth != null && hasRole("admin");
+    }
+    
+    // Activities collection rules
+    match /activities/{activityId} {
+      // Students can read their own activities and create new ones
+      allow read, create: if request.auth != null && (resource == null || resource.data.studentId == request.auth.uid);
+
+      // Admin/Faculty can create activities during administrative operations (e.g., seeding)
+      allow create: if request.auth != null && (hasRole("admin") || hasRole("faculty"));
+
+      // Students can update their own pending activities
+      allow update: if request.auth != null && resource.data.studentId == request.auth.uid && resource.data.status == "pending";
+
+      // Faculty/Admin can read all and update any activity
+      allow read, update: if request.auth != null && (hasRole("admin") || hasRole("faculty"));
+    }
+    
+    // Admin-only collections (if any)
+    match /admin/{document=**} {
+      allow read, write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+  }
+}
